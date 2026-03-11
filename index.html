@@ -1,0 +1,484 @@
+import { useState, useEffect } from "react";
+
+const initialData = {
+  startDate: "",
+  notes: [],
+  scheduledTime: "09:00",
+  incomingNotes: [],
+};
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem("mermed_data");
+    return raw ? { ...initialData, ...JSON.parse(raw) } : initialData;
+  } catch {
+    return initialData;
+  }
+}
+
+function getDayCount(startDate) {
+  if (!startDate) return 0;
+  const start = new Date(startDate);
+  const now = new Date();
+  start.setHours(0, 0, 0, 0);
+  now.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.floor((now - start) / 86400000) + 1);
+}
+
+function FloatingHearts() {
+  return (
+    <div className="hearts-container" aria-hidden="true">
+      {[...Array(8)].map((_, i) => (
+        <div key={i} className={`heart heart-${i + 1}`}>♡</div>
+      ))}
+    </div>
+  );
+}
+
+const COUPLE_PHOTO = "/mnt/user-data/uploads/bba78a90-efce-479e-9b40-1bdd47611b4a.jpeg";
+
+export default function MermedApp() {
+  const [data, setData] = useState(initialData);
+  const [note, setNote] = useState("");
+  const [activeTab, setActiveTab] = useState("home");
+  const [sent, setSent] = useState(false);
+  const [notifGranted, setNotifGranted] = useState(false);
+  const [editingStart, setEditingStart] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+  // Simulate incoming message from Mertcan
+  const [simulateIncoming, setSimulateIncoming] = useState("");
+
+  useEffect(() => {
+    const loaded = loadData();
+    setData(loaded);
+    if (Notification && Notification.permission === "granted") setNotifGranted(true);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("mermed_data", JSON.stringify(data));
+  }, [data]);
+
+  const dayCount = getDayCount(data.startDate);
+
+  function showToast(msg) {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3500);
+  }
+
+  async function requestNotifPermission() {
+    if (!("Notification" in window)) return alert("Tarayıcın bildirimleri desteklemiyor.");
+    const perm = await Notification.requestPermission();
+    if (perm === "granted") setNotifGranted(true);
+    else alert("Bildirim izni verilmedi.");
+  }
+
+  function sendNote() {
+    if (!note.trim()) return;
+    const newNote = {
+      id: Date.now(),
+      text: note.trim(),
+      date: new Date().toLocaleDateString("tr-TR"),
+      day: dayCount,
+      sender: "medine",
+    };
+    const updated = { ...data, notes: [newNote, ...data.notes] };
+    setData(updated);
+    setNote("");
+    setSent(true);
+    setTimeout(() => setSent(false), 2500);
+
+    // Medişten bildirim
+    showToast("medişten bildirim var! 💌");
+    if (notifGranted) {
+      new Notification("medişten bildirim var! 💌", { body: newNote.text });
+    }
+  }
+
+  function simulateMertcanMessage() {
+    if (!simulateIncoming.trim()) return;
+    const incoming = {
+      id: Date.now(),
+      text: simulateIncoming.trim(),
+      date: new Date().toLocaleDateString("tr-TR"),
+      day: dayCount,
+      sender: "mertcan",
+    };
+    const updated = { ...data, notes: [incoming, ...data.notes] };
+    setData(updated);
+    setSimulateIncoming("");
+
+    // Merdişten bildirim
+    showToast("merdişten bildirim var! 💙");
+    if (notifGranted) {
+      new Notification("merdişten bildirim var! 💙", { body: incoming.text });
+    }
+  }
+
+  function scheduleNotif() {
+    if (!notifGranted) return alert("Önce bildirim iznini aç!");
+    const [h, m] = data.scheduledTime.split(":").map(Number);
+    const now = new Date();
+    const target = new Date();
+    target.setHours(h, m, 0, 0);
+    if (target <= now) target.setDate(target.getDate() + 1);
+    setTimeout(() => {
+      if (data.notes.length > 0) new Notification("medişten bildirim var! 💌", { body: data.notes[0].text });
+    }, target - now);
+    alert(`✓ Bildirim ${data.scheduledTime} için ayarlandı!`);
+  }
+
+  const styles = `
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=DM+Mono:wght@300;400&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --cream: #fdf6f0; --blush: #f2c4c4; --rose: #c9726b;
+      --deep: #7a3535; --ink: #2c1a1a; --muted: #9e7070;
+      --card: #fff9f5; --watch: #1a0f0f;
+      --blue: #6b8ec9; --deep-blue: #354d7a;
+    }
+    body { background: var(--cream); }
+    .app { min-height: 100vh; background: var(--cream); font-family: 'Cormorant Garamond', Georgia, serif; color: var(--ink); position: relative; overflow-x: hidden; }
+    .hearts-container { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+    .heart { position: absolute; color: var(--blush); animation: floatUp linear infinite; opacity: 0; }
+    .heart-1 { left: 5%; font-size: 0.8rem; animation-duration: 12s; animation-delay: 0s; }
+    .heart-2 { left: 15%; font-size: 1.4rem; animation-duration: 15s; animation-delay: 2s; }
+    .heart-3 { left: 30%; font-size: 0.9rem; animation-duration: 11s; animation-delay: 4s; }
+    .heart-4 { left: 48%; font-size: 1.6rem; animation-duration: 18s; animation-delay: 1s; }
+    .heart-5 { left: 62%; font-size: 0.7rem; animation-duration: 13s; animation-delay: 6s; }
+    .heart-6 { left: 75%; font-size: 1.1rem; animation-duration: 16s; animation-delay: 3s; }
+    .heart-7 { left: 85%; font-size: 1.3rem; animation-duration: 14s; animation-delay: 7s; }
+    .heart-8 { left: 93%; font-size: 0.8rem; animation-duration: 10s; animation-delay: 5s; }
+    @keyframes floatUp {
+      0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+      10% { opacity: 0.4; } 90% { opacity: 0.2; }
+      100% { transform: translateY(-10vh) rotate(20deg); opacity: 0; }
+    }
+
+    /* TOAST */
+    .toast {
+      position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+      z-index: 999;
+      background: #fff;
+      border: 1.5px solid var(--blush);
+      border-radius: 40px;
+      padding: 12px 24px;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      color: var(--deep);
+      box-shadow: 0 8px 32px rgba(201,114,107,0.2);
+      white-space: nowrap;
+      animation: toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    .toast.blue { border-color: var(--blue); color: var(--deep-blue); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(0.92); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+    }
+
+    .main { position: relative; z-index: 1; max-width: 420px; margin: 0 auto; padding: 0 0 100px; }
+    .header { padding: 40px 24px 20px; text-align: center; }
+    .app-icon-wrap { display: flex; justify-content: center; margin-bottom: 16px; }
+    .app-icon { width: 90px; height: 90px; border-radius: 24px; object-fit: cover; object-position: center top; border: 3px solid var(--blush); box-shadow: 0 6px 24px rgba(201,114,107,0.25); animation: iconPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both; }
+    @keyframes iconPop { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .header-label { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+    .app-name { font-size: 3.2rem; font-weight: 300; font-style: italic; color: var(--deep); line-height: 1; letter-spacing: -1px; }
+    .app-tagline { font-size: 1rem; font-style: italic; color: var(--muted); margin-top: 6px; }
+
+    .day-card { margin: 0 20px 20px; background: linear-gradient(135deg, var(--rose) 0%, var(--deep) 100%); border-radius: 20px; padding: 28px 24px; text-align: center; position: relative; overflow: hidden; box-shadow: 0 8px 32px rgba(122,53,53,0.25); }
+    .day-card-photo { position: absolute; top: 0; right: 0; bottom: 0; width: 110px; object-fit: cover; object-position: center top; opacity: 0.18; border-radius: 0 20px 20px 0; }
+    .day-number { font-size: 5rem; font-weight: 300; color: #fff; line-height: 1; letter-spacing: -2px; position: relative; z-index: 1; }
+    .day-label { font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.15em; color: rgba(255,255,255,0.7); text-transform: uppercase; margin-top: 6px; position: relative; z-index: 1; }
+    .day-sub { font-size: 0.9rem; font-style: italic; color: rgba(255,255,255,0.6); margin-top: 4px; position: relative; z-index: 1; }
+    .set-date-btn { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #fff; font-family: 'DM Mono', monospace; font-size: 0.65rem; padding: 6px 14px; border-radius: 20px; cursor: pointer; margin-top: 14px; transition: background 0.2s; position: relative; z-index: 1; }
+    .set-date-btn:hover { background: rgba(255,255,255,0.25); }
+    .date-input-row { display: flex; gap: 8px; margin-top: 12px; justify-content: center; position: relative; z-index: 1; }
+    .date-input { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: #fff; padding: 6px 10px; border-radius: 10px; font-family: 'DM Mono', monospace; font-size: 0.75rem; }
+    .date-input::-webkit-calendar-picker-indicator { filter: invert(1); }
+    .confirm-btn { background: rgba(255,255,255,0.9); border: none; color: var(--deep); font-family: 'DM Mono', monospace; font-size: 0.7rem; padding: 6px 12px; border-radius: 10px; cursor: pointer; }
+
+    .watch-section { margin: 0 20px 20px; }
+    .section-label { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; padding-left: 4px; }
+    .watch-frame { background: var(--watch); border-radius: 28px; padding: 3px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+    .watch-screen { background: linear-gradient(160deg, #1f0a0a 0%, #0d0505 100%); border-radius: 26px; padding: 20px; text-align: center; min-height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; position: relative; overflow: hidden; }
+    .watch-bg-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; opacity: 0.12; border-radius: 26px; }
+    .watch-app-name { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.25em; color: var(--blush); opacity: 0.7; text-transform: uppercase; position: relative; z-index: 1; }
+    .watch-count { font-size: 2.8rem; color: var(--blush); font-weight: 300; line-height: 1; position: relative; z-index: 1; }
+    .watch-days-text { font-family: 'DM Mono', monospace; font-size: 0.55rem; color: rgba(242,196,196,0.5); letter-spacing: 0.15em; position: relative; z-index: 1; }
+    .watch-note-preview { margin-top: 10px; font-style: italic; font-size: 0.85rem; color: rgba(242,196,196,0.8); max-width: 200px; line-height: 1.4; border-top: 1px solid rgba(242,196,196,0.15); padding-top: 10px; position: relative; z-index: 1; }
+
+    /* NOTE WRITING */
+    .note-section { margin: 0 20px 20px; }
+    .note-card { background: var(--card); border: 1px solid rgba(201,114,107,0.15); border-radius: 16px; padding: 20px; box-shadow: 0 2px 16px rgba(201,114,107,0.06); }
+    .note-textarea { width: 100%; min-height: 110px; border: none; background: transparent; font-family: 'Cormorant Garamond', serif; font-size: 1.1rem; color: var(--ink); resize: none; outline: none; line-height: 1.7; }
+    .note-textarea::placeholder { color: var(--blush); font-style: italic; }
+    .note-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; border-top: 1px solid rgba(201,114,107,0.1); padding-top: 12px; }
+    .char-count { font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--muted); }
+    .send-btn { background: linear-gradient(135deg, var(--rose), var(--deep)); border: none; color: #fff; font-family: 'Cormorant Garamond', serif; font-size: 1rem; font-style: italic; padding: 10px 24px; border-radius: 40px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 4px 14px rgba(122,53,53,0.3); }
+    .send-btn:hover { transform: translateY(-1px); }
+    .sent-msg { text-align: center; color: var(--rose); font-style: italic; font-size: 1rem; padding: 8px; animation: fadeIn 0.3s ease; }
+
+    /* SIMULATE INCOMING */
+    .incoming-card { background: linear-gradient(135deg, #eef3fc, #dce8f7); border: 1px solid rgba(107,142,201,0.2); border-radius: 16px; padding: 20px; margin-top: 16px; }
+    .incoming-label { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.15em; color: var(--deep-blue); text-transform: uppercase; margin-bottom: 10px; opacity: 0.7; }
+    .incoming-textarea { width: 100%; min-height: 70px; border: none; background: transparent; font-family: 'Cormorant Garamond', serif; font-size: 1.05rem; color: var(--deep-blue); resize: none; outline: none; line-height: 1.6; }
+    .incoming-textarea::placeholder { color: rgba(107,142,201,0.5); font-style: italic; }
+    .incoming-footer { display: flex; justify-content: flex-end; margin-top: 10px; border-top: 1px solid rgba(107,142,201,0.15); padding-top: 10px; }
+    .incoming-btn { background: linear-gradient(135deg, var(--blue), var(--deep-blue)); border: none; color: #fff; font-family: 'Cormorant Garamond', serif; font-size: 1rem; font-style: italic; padding: 8px 20px; border-radius: 40px; cursor: pointer; box-shadow: 0 4px 14px rgba(53,77,122,0.25); transition: transform 0.15s; }
+    .incoming-btn:hover { transform: translateY(-1px); }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    /* NOTIF SETTINGS */
+    .notif-section { margin: 0 20px 20px; }
+
+    /* NOTIF BADGE */
+    .notif-badge {
+      background: var(--rose);
+      color: #fff;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+      border-radius: 20px;
+      padding: 8px 18px;
+      display: inline-block;
+      margin-bottom: 8px;
+      animation: fadeIn 0.3s ease;
+    }
+    .notif-badge.blue { background: var(--blue); }
+
+    .settings-card { background: var(--card); border: 1px solid rgba(201,114,107,0.12); border-radius: 16px; padding: 18px 20px; }
+    .settings-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .settings-row:last-child { margin-bottom: 0; }
+    .settings-key { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+    .time-input { border: 1px solid var(--blush); border-radius: 8px; padding: 4px 10px; font-family: 'DM Mono', monospace; font-size: 0.8rem; color: var(--deep); background: transparent; outline: none; }
+    .action-btn { background: transparent; border: 1px solid var(--rose); color: var(--rose); font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.1em; padding: 6px 14px; border-radius: 20px; cursor: pointer; text-transform: uppercase; transition: all 0.2s; }
+    .action-btn:hover { background: var(--rose); color: #fff; }
+
+    /* HISTORY */
+    .history-section { margin: 0 20px; }
+    .note-item { border-radius: 14px; padding: 16px 18px; margin-bottom: 10px; position: relative; animation: fadeIn 0.3s ease; }
+    .note-item.from-medine { background: var(--card); border: 1px solid rgba(201,114,107,0.15); }
+    .note-item.from-mertcan { background: #eef3fc; border: 1px solid rgba(107,142,201,0.15); }
+    .note-item-sender { font-family: 'DM Mono', monospace; font-size: 0.55rem; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
+    .from-medine .note-item-sender { color: var(--rose); }
+    .from-mertcan .note-item-sender { color: var(--blue); }
+    .note-item-text { font-size: 1rem; font-style: italic; color: var(--ink); line-height: 1.6; margin-bottom: 8px; }
+    .from-mertcan .note-item-text { color: var(--deep-blue); }
+    .note-item-meta { font-family: 'DM Mono', monospace; font-size: 0.58rem; color: var(--muted); letter-spacing: 0.08em; }
+    .note-item-day { position: absolute; top: 12px; right: 14px; font-family: 'DM Mono', monospace; font-size: 0.55rem; letter-spacing: 0.1em; }
+    .from-medine .note-item-day { color: var(--blush); }
+    .from-mertcan .note-item-day { color: rgba(107,142,201,0.6); }
+    .empty-state { text-align: center; color: var(--muted); font-style: italic; padding: 32px; font-size: 1rem; }
+
+    /* NAV */
+    .nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 420px; max-width: 100vw; background: rgba(253,246,240,0.92); backdrop-filter: blur(12px); border-top: 1px solid rgba(201,114,107,0.12); display: flex; padding: 12px 0 20px; z-index: 100; }
+    .nav-btn { flex: 1; background: none; border: none; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; padding: 4px; transition: transform 0.15s; }
+    .nav-btn:hover { transform: translateY(-1px); }
+    .nav-icon { font-size: 1.3rem; }
+    .nav-label { font-family: 'DM Mono', monospace; font-size: 0.5rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .nav-btn.active .nav-label { color: var(--rose); }
+    .nav-photo-icon { width: 26px; height: 26px; border-radius: 8px; object-fit: cover; object-position: center top; border: 1.5px solid var(--blush); transition: border-color 0.2s; }
+    .nav-btn.active .nav-photo-icon { border-color: var(--rose); box-shadow: 0 0 6px rgba(201,114,107,0.4); }
+  `;
+
+  const tabs = [
+    { id: "home", label: "Ana Sayfa", photo: true },
+    { id: "write", icon: "✉", label: "Not Yaz" },
+    { id: "history", icon: "☽", label: "Notlar" },
+    { id: "settings", icon: "◎", label: "Ayarlar" },
+  ];
+
+  const lastNote = data.notes[0];
+
+  return (
+    <>
+      <style>{styles}</style>
+      <div className="app">
+        <FloatingHearts />
+
+        {/* TOAST */}
+        {toastMsg && (
+          <div className={`toast ${toastMsg.includes("merdişten") ? "blue" : ""}`}>
+            {toastMsg}
+          </div>
+        )}
+
+        <div className="main">
+
+          {/* HOME */}
+          {activeTab === "home" && (
+            <>
+              <div className="header">
+                <div className="app-icon-wrap">
+                  <img src={COUPLE_PHOTO} alt="mermed" className="app-icon" />
+                </div>
+                <div className="header-label">hoş geldin</div>
+                <div className="app-name">mermed</div>
+                <div className="app-tagline">seninle her gün güzel ♡</div>
+              </div>
+              <div className="day-card">
+                <img src={COUPLE_PHOTO} alt="" className="day-card-photo" />
+                {data.startDate ? (
+                  <>
+                    <div className="day-number">{dayCount}</div>
+                    <div className="day-label">gündür birlikteyiz</div>
+                    <div className="day-sub">{new Date(data.startDate).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })} ♡</div>
+                    <button className="set-date-btn" onClick={() => setEditingStart(v => !v)}>tarihi değiştir</button>
+                  </>
+                ) : (
+                  <>
+                    <div className="day-number">—</div>
+                    <div className="day-label">birliktelik tarihinizi girin</div>
+                  </>
+                )}
+                {(!data.startDate || editingStart) && (
+                  <div className="date-input-row">
+                    <input type="date" className="date-input" id="startpicker" defaultValue={data.startDate} />
+                    <button className="confirm-btn" onClick={() => {
+                      const v = document.getElementById("startpicker").value;
+                      if (v) { setData(d => ({ ...d, startDate: v })); setEditingStart(false); }
+                    }}>Kaydet</button>
+                  </div>
+                )}
+              </div>
+              <div className="watch-section">
+                <div className="section-label">⌚ akıllı saat önizleme</div>
+                <div className="watch-frame">
+                  <div className="watch-screen">
+                    <img src={COUPLE_PHOTO} alt="" className="watch-bg-photo" />
+                    <div className="watch-app-name">mermed</div>
+                    <div className="watch-count">{dayCount || "—"}</div>
+                    <div className="watch-days-text">GÜN</div>
+                    {lastNote && (
+                      <div className="watch-note-preview">"{lastNote.text.slice(0, 55)}{lastNote.text.length > 55 ? "…" : ""}"</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* WRITE */}
+          {activeTab === "write" && (
+            <>
+              <div className="header">
+                <div className="app-icon-wrap">
+                  <img src={COUPLE_PHOTO} alt="mermed" className="app-icon" />
+                </div>
+                <div className="header-label">mermed · not yaz</div>
+                <div className="app-name" style={{ fontSize: "2.2rem" }}>bugünün notu</div>
+              </div>
+              <div className="note-section">
+                {/* Medine → Mertcan */}
+                <div className="section-label" style={{ color: "var(--rose)" }}>💌 mediş'ten mertcan'a</div>
+                <div className="note-card">
+                  <textarea className="note-textarea" value={note} onChange={e => setNote(e.target.value)} placeholder="Sana bugün ne söylemek istiyorum…" maxLength={200} />
+                  <div className="note-footer">
+                    <span className="char-count">{note.length}/200</span>
+                    {sent ? <div className="sent-msg">♡ Gönderildi</div> : <button className="send-btn" onClick={sendNote}>Gönder ♡</button>}
+                  </div>
+                </div>
+
+                {/* Mertcan → Medine (simulate) */}
+                <div className="incoming-card">
+                  <div className="incoming-label">💙 mertcan'dan gelen not (simüle et)</div>
+                  <textarea className="incoming-textarea" value={simulateIncoming} onChange={e => setSimulateIncoming(e.target.value)} placeholder="Mertcan'ın yazdığı notu buraya yaz…" maxLength={200} />
+                  <div className="incoming-footer">
+                    <button className="incoming-btn" onClick={simulateMertcanMessage}>Gönder 💙</button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* HISTORY */}
+          {activeTab === "history" && (
+            <>
+              <div className="header">
+                <div className="app-icon-wrap">
+                  <img src={COUPLE_PHOTO} alt="mermed" className="app-icon" />
+                </div>
+                <div className="header-label">mermed · arşiv</div>
+                <div className="app-name" style={{ fontSize: "2.2rem" }}>biriktirilen anlar</div>
+              </div>
+              <div className="history-section">
+                {data.notes.length === 0
+                  ? <div className="empty-state">Henüz not yazılmamış.<br />İlk mermed notunu yaz ♡</div>
+                  : data.notes.map(n => (
+                    <div key={n.id} className={`note-item ${n.sender === "mertcan" ? "from-mertcan" : "from-medine"}`}>
+                      <div className="note-item-sender">
+                        {n.sender === "mertcan" ? "merdişten 💙" : "mediş'ten 💌"}
+                      </div>
+                      <div className="note-item-day">GÜN {n.day}</div>
+                      <div className="note-item-text">"{n.text}"</div>
+                      <div className="note-item-meta">{n.date}</div>
+                    </div>
+                  ))
+                }
+              </div>
+            </>
+          )}
+
+          {/* SETTINGS */}
+          {activeTab === "settings" && (
+            <>
+              <div className="header">
+                <div className="app-icon-wrap">
+                  <img src={COUPLE_PHOTO} alt="mermed" className="app-icon" />
+                </div>
+                <div className="header-label">mermed · ayarlar</div>
+                <div className="app-name" style={{ fontSize: "2.2rem" }}>bildirim & bağlantı</div>
+              </div>
+
+              {/* Notif preview badges */}
+              <div style={{ margin: "0 20px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div className="section-label">bildirim uyarıları</div>
+                <div className="notif-badge">medişten bildirim var! 💌</div>
+                <div className="notif-badge blue">merdişten bildirim var! 💙</div>
+              </div>
+
+              <div className="notif-section">
+                <div className="section-label">bildirim ayarları</div>
+                <div className="settings-card">
+                  <div className="settings-row">
+                    <span className="settings-key">İzin Durumu</span>
+                    <button className="action-btn" onClick={requestNotifPermission}>{notifGranted ? "✓ Verildi" : "İzin Ver"}</button>
+                  </div>
+                  <div className="settings-row">
+                    <span className="settings-key">Günlük Saat</span>
+                    <input type="time" className="time-input" value={data.scheduledTime} onChange={e => setData(d => ({ ...d, scheduledTime: e.target.value }))} />
+                  </div>
+                  <div className="settings-row">
+                    <span className="settings-key">Hatırlatıcı</span>
+                    <button className="action-btn" onClick={scheduleNotif}>Zamanla</button>
+                  </div>
+                </div>
+                <div style={{ marginTop: 20 }}>
+                  <div className="section-label">⌚ akıllı saat</div>
+                  <div className="settings-card">
+                    <p style={{ fontStyle: "italic", color: "var(--muted)", fontSize: "0.9rem", lineHeight: 1.7 }}>
+                      mermed telefon bildirimlerini destekler. Apple Watch, Galaxy Watch veya Garmin saatiniz telefonunuza bağlıysa bildirimler otomatik olarak saatinize yansır.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <nav className="nav">
+          {tabs.map(t => (
+            <button key={t.id} className={`nav-btn ${activeTab === t.id ? "active" : ""}`} onClick={() => setActiveTab(t.id)}>
+              {t.photo
+                ? <img src={COUPLE_PHOTO} alt="ana sayfa" className="nav-photo-icon" />
+                : <span className="nav-icon">{t.icon}</span>
+              }
+              <span className="nav-label">{t.label}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+    </>
+  );
+}
